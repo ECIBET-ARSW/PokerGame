@@ -1,4 +1,8 @@
 package eci.edu.co.pokerservice.repository;
 
-public class PlayerRepository {
+import eci.edu.co.pokerservice.model.document.Lobby;
+import eci.edu.co.pokerservice.model.document.Player;
+import org.springframework.data.mongodb.repository.MongoRepository;
+
+public interface PlayerRepository extends MongoRepository<Player,String> {
 }
