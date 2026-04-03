@@ -1,4 +1,4 @@
-package eci.edu.co.pokerservice.model.request;
+package eci.edu.co.pokerservice.model.dto.request;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

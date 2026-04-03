@@ -1,6 +1,7 @@
 package eci.edu.co.pokerservice.model.document;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.DBRef;
@@ -10,21 +11,18 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Document(collection = "carts")
+@Document(collection = "lobbies")
 @Data
 @AllArgsConstructor
+@Builder
 public class Lobby{
     @Id
     private String id;
-    // Bet control
-    private int totalBet;
-    private int betRound;
-    private int actualBet;
-    @DBRef
-    private List<Player> players;
-    private List<Cart> carts;
-    private List<Cart> cartsInTable;
+    // Game control
+    private Game actualGame;
+    private int smallBlind;
+    private int bigBlind;
     // History control
-    private boolean inGame;
+    private List<Game> games;
     private LocalDateTime lobbyCreated;
 }

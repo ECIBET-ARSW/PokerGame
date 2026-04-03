@@ -1,4 +1,4 @@
-package eci.edu.co.pokerservice.model.response;
+package eci.edu.co.pokerservice.response;
 
 import lombok.Builder;
 

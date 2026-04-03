@@ -1,8 +1,8 @@
 package eci.edu.co.pokerservice.controller;
 
 import eci.edu.co.pokerservice.model.dto.LobbyDTO;
-import eci.edu.co.pokerservice.model.request.LobbyRequestDTO;
-import eci.edu.co.pokerservice.model.response.ApiResponse;
+import eci.edu.co.pokerservice.model.dto.request.LobbyRequestDTO;
+import eci.edu.co.pokerservice.response.ApiResponse;
 import eci.edu.co.pokerservice.service.LobbyService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
