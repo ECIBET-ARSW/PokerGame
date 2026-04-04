@@ -10,4 +10,5 @@ import lombok.Data;
 public class LobbyRequestDTO {
     private String playerId;
     private String playerName;
+    private int credits;
 }

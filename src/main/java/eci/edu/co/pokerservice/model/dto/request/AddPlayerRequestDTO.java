@@ -11,4 +11,5 @@ public class AddPlayerRequestDTO {
     private String lobbyId;
     private String playerId;
     private String playerName;
+    private int credits;
 }

@@ -40,6 +40,7 @@ public class LobbyService {
     public LobbyDTO createLobby(LobbyRequestDTO lobbyRequestDTO) {
         Player player = playerValidations(lobbyRequestDTO.getPlayerId());
         player.setName(lobbyRequestDTO.getPlayerName());
+        player.setCredit(lobbyRequestDTO.getCredits());
         Game game = newGame(List.of(player));
         gameRepository.save(game);
         Lobby lobby = newLobby(game);
@@ -117,6 +118,7 @@ public class LobbyService {
     public LobbyDTO addPlayer(AddPlayerRequestDTO addPlayerRequestDTO){
         Player player = playerValidations(addPlayerRequestDTO.getPlayerId());
         player.setName(addPlayerRequestDTO.getPlayerName());
+        player.setCredit(addPlayerRequestDTO.getCredits());
         Lobby lobby = validateLobby(addPlayerRequestDTO.getLobbyId());
         Game game = validateGameExist(lobby.getActualGame().getId());
         game.getPlayers().add(player);
