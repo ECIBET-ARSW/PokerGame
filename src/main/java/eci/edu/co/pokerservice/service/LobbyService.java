@@ -8,7 +8,8 @@ import eci.edu.co.pokerservice.model.document.Lobby;
 import eci.edu.co.pokerservice.model.document.Player;
 import eci.edu.co.pokerservice.model.dto.LobbyDTO;
 import eci.edu.co.pokerservice.model.dto.request.AddPlayerRequestDTO;
-import eci.edu.co.pokerservice.model.dto.request.EndGameRequest;
+import eci.edu.co.pokerservice.model.dto.request.EndGameRequestDTO;
+import eci.edu.co.pokerservice.model.dto.request.LeaveLobbyRequestDTO;
 import eci.edu.co.pokerservice.model.dto.request.LobbyRequestDTO;
 import eci.edu.co.pokerservice.repository.CartRepository;
 import eci.edu.co.pokerservice.repository.GameRepository;
@@ -42,9 +43,10 @@ public class LobbyService {
         player.setName(lobbyRequestDTO.getPlayerName());
         player.setCredit(lobbyRequestDTO.getCredits());
         Game game = newGame(List.of(player));
-        gameRepository.save(game);
         Lobby lobby = newLobby(game);
         lobby.setGames(new ArrayList<>());
+        validateBigBlind(player);
+        gameRepository.save(game);
         playerRepository.save(player);
         lobbyRepository.save(lobby);
         return lobbyMapper.toDTO(lobby);
@@ -85,20 +87,23 @@ public class LobbyService {
     }
 
     @Transactional
-    public LobbyDTO endGame(EndGameRequest endGameRequest){
-        Lobby lobby = validateLobby(endGameRequest.getLobbyId());
-        Player player = playerRepository.findById(endGameRequest.getWinnerId()).
+    public LobbyDTO endGame(EndGameRequestDTO endGameRequestDTO){
+        Lobby lobby = validateLobby(endGameRequestDTO.getLobbyId());
+        Player player = playerRepository.findById(endGameRequestDTO.getWinnerId()).
                 orElseThrow(()-> new LobbyBadRequestException("Winner not exist"));
         Game game = lobby.getActualGame();
         game.setInGame(false);
         game.setWinner(player);
         lobby.getGames().add(game);
-        Game newGame = newGame(game.getPlayers());
+        List<Player> players = game.getPlayers().stream()
+                .filter(Player::isInLobby)
+                .toList();
+        Game newGame = newGame(players);
         lobby.setActualGame(newGame);
         gameRepository.save(game);
         gameRepository.save(newGame);
         lobbyRepository.save(lobby);
-        Lobby savedLobby = validateLobby(endGameRequest.getLobbyId());
+        Lobby savedLobby = validateLobby(endGameRequestDTO.getLobbyId());
         return lobbyMapper.toDTO(savedLobby);
     }
 
@@ -121,12 +126,22 @@ public class LobbyService {
         player.setCredit(addPlayerRequestDTO.getCredits());
         Lobby lobby = validateLobby(addPlayerRequestDTO.getLobbyId());
         Game game = validateGameExist(lobby.getActualGame().getId());
+        validatePlayersNumber(game.getPlayers());
         game.getPlayers().add(player);
+        validateBigBlind(player);
         playerRepository.save(player);
         gameRepository.save(game);
         lobbyRepository.save(lobby);
         Lobby savedLobby = validateLobby(addPlayerRequestDTO.getLobbyId());
         return lobbyMapper.toDTO(savedLobby);
+    }
+
+    private void validateBigBlind(Player player){
+        if(player.getCredit() < 2000) throw new LobbyBadRequestException("Credits are not enough");
+    }
+
+    private void validatePlayersNumber(List<Player> players){
+        if(players.size() > 6) throw new LobbyBadRequestException("Lobby is full");
     }
 
     private Game validateGameExist(String gameId){
@@ -137,5 +152,12 @@ public class LobbyService {
     public List<LobbyDTO> getLobbies(){
         List<Lobby> lobbies = lobbyRepository.findAll();
         return lobbies.stream().map(lobbyMapper::toDTO).toList();
+    }
+
+    public void removePlayer(LeaveLobbyRequestDTO leaveLobbyRequestDTO){
+        Player player = playerRepository.findById(leaveLobbyRequestDTO.getPlayerId())
+                .orElseThrow(() -> new LobbyNotFoundException("Player not found"));
+        player.setInLobby(false);
+        playerRepository.save(player);
     }
 }
