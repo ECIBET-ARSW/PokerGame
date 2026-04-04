@@ -11,6 +11,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class GameDTO {
+    private int turn;
     private int totalBet;
     private int betRound;
     private int actualBet;

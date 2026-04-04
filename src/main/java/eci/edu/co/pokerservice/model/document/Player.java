@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.List;
 
+
 @Document(collection = "players")
 @Data
 @Builder
@@ -21,6 +22,11 @@ public class Player {
     private String id;
     private String name;
     private int credit;
-    private List<Cart> carts;
     private boolean inLobby = false;
+
+    // Estado dentro de la partida
+    private List<Cart> hand;
+    private int currentBet;
+    private boolean folded;
+    private boolean allIn;
 }
