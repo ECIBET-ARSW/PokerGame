@@ -1,6 +1,5 @@
 package eci.edu.co.pokerservice.model.document;
 
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,16 +10,23 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.List;
 
-@Document(collection = "players")
+@Document(collection = "games")
 @Data
-@Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class Player {
+@Builder
+public class Game {
     @Id
     private String id;
-    private String name;
-    private int credit;
+    private int totalBet;
+    private int betRound;
+    private int actualBet;
+    private int actualRaise;
+    @DBRef
+    private List<Player> players;
     private List<Cart> carts;
-    private boolean inLobby = false;
+    private List<Cart> cartsInTable;
+    private boolean inGame;
+    @DBRef
+    private Player winner;
 }
