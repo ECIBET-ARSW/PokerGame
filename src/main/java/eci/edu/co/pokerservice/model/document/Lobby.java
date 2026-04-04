@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Document(collection = "lobbies")
@@ -19,10 +20,12 @@ public class Lobby{
     @Id
     private String id;
     // Game control
+    @DBRef
     private Game actualGame;
     private int smallBlind;
     private int bigBlind;
     // History control
+    @DBRef
     private List<Game> games;
     private LocalDateTime lobbyCreated;
 }

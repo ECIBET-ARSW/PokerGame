@@ -10,13 +10,18 @@ import java.util.Map;
 @RestControllerAdvice
 public class ExceptionController {
     @ExceptionHandler({
-            LobbyException.class,
+            LobbyBadRequestException.class,
     })
     public ResponseEntity<?> handleResponsibleBadRequest(RuntimeException ex) {
         return response(ex, HttpStatus.BAD_REQUEST);
     }
 
-
+    @ExceptionHandler({
+            LobbyNotFoundException.class,
+    })
+    public ResponseEntity<?> handleResponsibleNotFound(RuntimeException ex) {
+        return response(ex, HttpStatus.NOT_FOUND);
+    }
 
     private ResponseEntity<?> response(RuntimeException ex, HttpStatus status){
         return ResponseEntity.status(status)
