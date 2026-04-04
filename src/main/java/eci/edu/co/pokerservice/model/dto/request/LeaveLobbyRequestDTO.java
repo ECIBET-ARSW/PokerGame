@@ -7,7 +7,7 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 @Builder
-public class EndGameRequest {
+public class LeaveLobbyRequestDTO {
+    private String playerId;
     private String lobbyId;
-    private String winnerId;
 }

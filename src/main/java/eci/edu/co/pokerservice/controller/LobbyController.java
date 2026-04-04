@@ -2,7 +2,8 @@ package eci.edu.co.pokerservice.controller;
 
 import eci.edu.co.pokerservice.model.dto.LobbyDTO;
 import eci.edu.co.pokerservice.model.dto.request.AddPlayerRequestDTO;
-import eci.edu.co.pokerservice.model.dto.request.EndGameRequest;
+import eci.edu.co.pokerservice.model.dto.request.EndGameRequestDTO;
+import eci.edu.co.pokerservice.model.dto.request.LeaveLobbyRequestDTO;
 import eci.edu.co.pokerservice.model.dto.request.LobbyRequestDTO;
 import eci.edu.co.pokerservice.response.ApiResponse;
 import eci.edu.co.pokerservice.service.LobbyService;
@@ -29,14 +30,19 @@ public class LobbyController {
         return response(200, lobbyDTO, "Game is started");
     }
     @PutMapping()
-    public ResponseEntity<ApiResponse<Object>> endGame(@RequestBody EndGameRequest endGameRequest){
-        LobbyDTO lobbyDTO = lobbyService.endGame(endGameRequest);
+    public ResponseEntity<ApiResponse<Object>> endGame(@RequestBody EndGameRequestDTO endGameRequestDTO){
+        LobbyDTO lobbyDTO = lobbyService.endGame(endGameRequestDTO);
         return response(200, lobbyDTO, "Game is finished");
     }
     @PutMapping("/player")
     public ResponseEntity<ApiResponse<Object>> addPlayer(@RequestBody AddPlayerRequestDTO addPlayerRequestDTO){
         LobbyDTO lobbyDTO = lobbyService.addPlayer(addPlayerRequestDTO);
         return response(200, lobbyDTO, "Player is added");
+    }
+    @PutMapping("/player/end")
+    public ResponseEntity<ApiResponse<Object>> removePlayer(@RequestBody LeaveLobbyRequestDTO leaveLobbyRequestDTO){
+        lobbyService.removePlayer(leaveLobbyRequestDTO);
+        return response(200, "player removed", "Player is removed");
     }
     @GetMapping()
     public ResponseEntity<ApiResponse<Object>> getLobbies(){
