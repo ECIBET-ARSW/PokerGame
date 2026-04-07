@@ -36,7 +36,6 @@ public class LobbyService {
     private final GameRepository gameRepository;
     private final LobbyMapper lobbyMapper;
 
-
     @Transactional
     public LobbyDTO createLobby(LobbyRequestDTO lobbyRequestDTO) {
         Player player = playerValidations(lobbyRequestDTO.getPlayerId());
@@ -51,7 +50,8 @@ public class LobbyService {
         lobbyRepository.save(lobby);
         return lobbyMapper.toDTO(lobby);
     }
-    private Lobby newLobby(Game game){
+
+    private Lobby newLobby(Game game) {
         return Lobby.builder()
                 .actualGame(game)
                 .smallBlind(1000)
@@ -60,18 +60,18 @@ public class LobbyService {
                 .build();
     }
 
-    private Player playerValidations(String playerId){
+    private Player playerValidations(String playerId) {
         Optional<Player> optionalPlayer = playerRepository.findById(playerId);
         Player player = optionalPlayer.orElseGet(() -> Player.builder()
                 .id(playerId)
                 .build());
-        if(player.isInLobby()) throw new LobbyBadRequestException("Player in another lobby");
+        if (player.isInLobby()) throw new LobbyBadRequestException("Player in another lobby");
         player.setInLobby(true);
         return player;
     }
 
     @Transactional
-    public LobbyDTO startGame(String lobbyId){
+    public LobbyDTO startGame(String lobbyId) {
         Lobby lobby = validateLobby(lobbyId);
         Game game = validateGameExist(lobby.getActualGame().getId());
         validateGame(game);
@@ -81,24 +81,31 @@ public class LobbyService {
         return lobbyMapper.toDTO(savedLobby);
     }
 
-    private void validateGame(Game game){
+    private void validateGame(Game game) {
         log.info(game.getPlayers().toString());
-        if(game.getPlayers().size() == 1) throw new LobbyBadRequestException("Players number is not enough");
+        if (game.getPlayers().size() < 2) throw new LobbyBadRequestException("Players number is not enough");
     }
 
     @Transactional
-    public LobbyDTO endGame(EndGameRequestDTO endGameRequestDTO){
+    public LobbyDTO endGame(EndGameRequestDTO endGameRequestDTO) {
         Lobby lobby = validateLobby(endGameRequestDTO.getLobbyId());
-        Player player = playerRepository.findById(endGameRequestDTO.getWinnerId()).
-                orElseThrow(()-> new LobbyBadRequestException("Winner not exist"));
+        Game currentGame = lobby.getActualGame();
+        if (!currentGame.isInGame() && currentGame.getWinner() == null) {
+            return lobbyMapper.toDTO(lobby);
+        }
+
+        Player winner = playerRepository.findById(endGameRequestDTO.getWinnerId())
+                .orElseThrow(() -> new LobbyBadRequestException("Winner not exist"));
         Game game = lobby.getActualGame();
         game.setInGame(false);
-        game.setWinner(player);
+        game.setWinner(winner);
         lobby.getGames().add(game);
-        List<Player> players = game.getPlayers().stream()
-                .filter(Player::isInLobby)
-                .toList();
-        Game newGame = newGame(players);
+        List<Player> allPlayers = game.getPlayers();
+        allPlayers.forEach(p -> {
+            p.setInLobby(true);
+            playerRepository.save(p);
+        });
+        Game newGame = newGame(new ArrayList<>(allPlayers));
         lobby.setActualGame(newGame);
         gameRepository.save(game);
         gameRepository.save(newGame);
@@ -107,20 +114,21 @@ public class LobbyService {
         return lobbyMapper.toDTO(savedLobby);
     }
 
-    private Lobby validateLobby(String lobbyId){
+    private Lobby validateLobby(String lobbyId) {
         return lobbyRepository.findById(lobbyId)
                 .orElseThrow(() -> new LobbyNotFoundException("Lobby not found"));
     }
-    private Game newGame(List<Player> players){
+
+    private Game newGame(List<Player> players) {
         return Game.builder()
-                .players(players)
+                .players(new ArrayList<>(players))
                 .carts(cartRepository.findAll())
                 .inGame(false)
                 .build();
     }
 
     @Transactional
-    public LobbyDTO addPlayer(AddPlayerRequestDTO addPlayerRequestDTO){
+    public LobbyDTO addPlayer(AddPlayerRequestDTO addPlayerRequestDTO) {
         Player player = playerValidations(addPlayerRequestDTO.getPlayerId());
         player.setName(addPlayerRequestDTO.getPlayerName());
         player.setCredit(addPlayerRequestDTO.getCredits());
@@ -136,25 +144,25 @@ public class LobbyService {
         return lobbyMapper.toDTO(savedLobby);
     }
 
-    private void validateBigBlind(Player player){
-        if(player.getCredit() < 2000) throw new LobbyBadRequestException("Credits are not enough");
+    private void validateBigBlind(Player player) {
+        if (player.getCredit() < 2000) throw new LobbyBadRequestException("Credits are not enough");
     }
 
-    private void validatePlayersNumber(List<Player> players){
-        if(players.size() > 6) throw new LobbyBadRequestException("Lobby is full");
+    private void validatePlayersNumber(List<Player> players) {
+        if (players.size() >= 6) throw new LobbyBadRequestException("Lobby is full");
     }
 
-    private Game validateGameExist(String gameId){
+    private Game validateGameExist(String gameId) {
         return gameRepository.findById(gameId)
                 .orElseThrow(() -> new LobbyBadRequestException("Game not found"));
     }
 
-    public List<LobbyDTO> getLobbies(){
+    public List<LobbyDTO> getLobbies() {
         List<Lobby> lobbies = lobbyRepository.findAll();
         return lobbies.stream().map(lobbyMapper::toDTO).toList();
     }
 
-    public void removePlayer(LeaveLobbyRequestDTO leaveLobbyRequestDTO){
+    public void removePlayer(LeaveLobbyRequestDTO leaveLobbyRequestDTO) {
         Player player = playerRepository.findById(leaveLobbyRequestDTO.getPlayerId())
                 .orElseThrow(() -> new LobbyNotFoundException("Player not found"));
         player.setInLobby(false);

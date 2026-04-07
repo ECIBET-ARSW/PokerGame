@@ -4,13 +4,13 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-
 import java.util.List;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class GameDTO {
+    private String id;
     private int turn;
     private int totalBet;
     private int betRound;
