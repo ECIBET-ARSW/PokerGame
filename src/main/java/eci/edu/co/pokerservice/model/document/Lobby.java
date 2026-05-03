@@ -7,7 +7,6 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,15 +15,14 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @Builder
-public class Lobby{
+public class Lobby {
     @Id
     private String id;
-    // Game control
     @DBRef
     private Game actualGame;
     private int smallBlind;
     private int bigBlind;
-    // History control
+    private String leaderId;
     @DBRef
     private List<Game> games;
     private LocalDateTime lobbyCreated;

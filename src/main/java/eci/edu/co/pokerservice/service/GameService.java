@@ -136,6 +136,9 @@ public class GameService {
             game.setWinner(winner);
             game.setInGame(false);
             walletEventPublisher.publishBetWon(winner.getId(), game.getPot(), game.getId());
+            players.stream()
+                    .filter(p -> p.isInLobby() && !p.getId().equals(winner.getId()))
+                    .forEach(p -> walletEventPublisher.publishBetLost(p.getId(), p.getCurrentBet(), game.getId()));
             gameRepository.save(game);
             return gameMapper.toPublicDTO(game);
         }
@@ -200,7 +203,19 @@ public class GameService {
             game.setWinner(winner);
             game.setInGame(false);
             walletEventPublisher.publishBetWon(winner.getId(), game.getPot(), game.getId());
+            final String winnerId = winner.getId();
+            activePlayers.stream()
+                    .filter(p -> !p.getId().equals(winnerId))
+                    .forEach(p -> walletEventPublisher.publishBetLost(p.getId(), p.getCurrentBet(), game.getId()));
         }
+    }
+
+    private int calculateMaxAllIn(Game game) {
+        return game.getPlayers().stream()
+                .filter(p -> p.isInLobby() && !p.isFolded() && !p.isAllIn())
+                .mapToInt(Player::getCredit)
+                .min()
+                .orElse(0);
     }
 
     private int evaluateHand(List<Cart> hand, List<Cart> community) {
@@ -397,15 +412,6 @@ public class GameService {
         });
     }
 
-    private void postBlind(Player player, int amount, Game game) {
-        int toPay = Math.min(amount, player.getCredit());
-        player.setCredit(player.getCredit() - toPay);
-        player.setCurrentBet(toPay);
-        if (player.getCredit() == 0) player.setAllIn(true);
-        game.setPot(game.getPot() + toPay);
-        playerRepository.save(player);
-    }
-
     private void handleCheck(Game game, Player player) {
         if (game.getActualBet() > player.getCurrentBet()) {
             throw new GameBadRequestException("Cannot check, there is an active bet. Call or raise");
@@ -436,6 +442,14 @@ public class GameService {
         if (amountNeeded > player.getCredit()) {
             throw new GameBadRequestException("Not enough credits to raise");
         }
+
+        int maxAllIn = calculateMaxAllIn(game);
+        if (amountNeeded > maxAllIn) {
+            throw new GameBadRequestException(
+                    "La apuesta máxima es " + maxAllIn + " COP (limitada por el jugador con menos créditos)"
+            );
+        }
+
         player.setCredit(player.getCredit() - amountNeeded);
         player.setCurrentBet(totalBet);
         if (player.getCredit() == 0) player.setAllIn(true);

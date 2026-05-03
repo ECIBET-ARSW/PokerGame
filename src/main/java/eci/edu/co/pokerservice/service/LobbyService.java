@@ -38,11 +38,14 @@ public class LobbyService {
 
     @Transactional
     public LobbyDTO createLobby(LobbyRequestDTO lobbyRequestDTO) {
+        cleanPlayerFromLobbies(lobbyRequestDTO.getPlayerId());
+
         Player player = playerValidations(lobbyRequestDTO.getPlayerId());
         player.setName(lobbyRequestDTO.getPlayerName());
         player.setCredit(lobbyRequestDTO.getCredits());
         Game game = newGame(List.of(player));
         Lobby lobby = newLobby(game);
+        lobby.setLeaderId(player.getId());
         lobby.setGames(new ArrayList<>());
         validateBigBlind(player);
         gameRepository.save(game);
@@ -58,6 +61,41 @@ public class LobbyService {
                 .bigBlind(2000)
                 .lobbyCreated(LocalDateTime.now())
                 .build();
+    }
+
+    private void cleanPlayerFromLobbies(String playerId) {
+        Optional<Player> optionalPlayer = playerRepository.findById(playerId);
+        if (optionalPlayer.isEmpty()) return;
+
+        Player player = optionalPlayer.get();
+        if (!player.isInLobby()) return;
+
+        List<Lobby> allLobbies = lobbyRepository.findAll();
+        for (Lobby lobby : allLobbies) {
+            Game game = lobby.getActualGame();
+            if (game == null) continue;
+
+            List<Player> players = game.getPlayers();
+            if (players == null) continue;
+
+            boolean wasInThisLobby = players.removeIf(p -> p.getId().equals(playerId));
+            if (wasInThisLobby) {
+                if (players.isEmpty()) {
+                    gameRepository.delete(game);
+                    lobbyRepository.delete(lobby);
+                } else {
+                    if (playerId.equals(lobby.getLeaderId())) {
+                        lobby.setLeaderId(players.get(0).getId());
+                    }
+                    gameRepository.save(game);
+                    lobbyRepository.save(lobby);
+                }
+                break;
+            }
+        }
+
+        player.setInLobby(false);
+        playerRepository.save(player);
     }
 
     private Player playerValidations(String playerId) {
@@ -107,6 +145,8 @@ public class LobbyService {
         });
         Game newGame = newGame(new ArrayList<>(allPlayers));
         lobby.setActualGame(newGame);
+        lobby.setLeaderId(winner.getId());
+
         gameRepository.save(game);
         gameRepository.save(newGame);
         lobbyRepository.save(lobby);
@@ -129,6 +169,7 @@ public class LobbyService {
 
     @Transactional
     public LobbyDTO addPlayer(AddPlayerRequestDTO addPlayerRequestDTO) {
+        cleanPlayerFromLobbies(addPlayerRequestDTO.getPlayerId());
         Player player = playerValidations(addPlayerRequestDTO.getPlayerId());
         player.setName(addPlayerRequestDTO.getPlayerName());
         player.setCredit(addPlayerRequestDTO.getCredits());
@@ -162,9 +203,40 @@ public class LobbyService {
         return lobbies.stream().map(lobbyMapper::toDTO).toList();
     }
 
+    @Transactional
     public void removePlayer(LeaveLobbyRequestDTO leaveLobbyRequestDTO) {
-        Player player = playerRepository.findById(leaveLobbyRequestDTO.getPlayerId())
+        String playerId = leaveLobbyRequestDTO.getPlayerId();
+        String lobbyId  = leaveLobbyRequestDTO.getLobbyId();
+
+        Player player = playerRepository.findById(playerId)
                 .orElseThrow(() -> new LobbyNotFoundException("Player not found"));
+
+        if (lobbyId != null && !lobbyId.isEmpty()) {
+            try {
+                Lobby lobby = validateLobby(lobbyId);
+                Game game = lobby.getActualGame();
+
+                if (game != null && game.getPlayers() != null) {
+                    game.getPlayers().removeIf(p -> p.getId().equals(playerId));
+
+                    if (game.getPlayers().isEmpty()) {
+                        gameRepository.delete(game);
+                        lobbyRepository.delete(lobby);
+                    } else {
+                        if (playerId.equals(lobby.getLeaderId())) {
+                            lobby.setLeaderId(game.getPlayers().get(0).getId());
+                        }
+                        gameRepository.save(game);
+                        lobbyRepository.save(lobby);
+                    }
+                }
+            } catch (LobbyNotFoundException e) {
+                log.warn("Lobby not found when removing player: {}", lobbyId);
+            }
+        } else {
+            cleanPlayerFromLobbies(playerId);
+        }
+
         player.setInLobby(false);
         playerRepository.save(player);
     }
