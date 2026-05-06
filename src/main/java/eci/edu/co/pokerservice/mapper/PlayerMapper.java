@@ -4,7 +4,7 @@ import eci.edu.co.pokerservice.model.document.Player;
 import eci.edu.co.pokerservice.model.dto.PlayerDTO;
 import org.mapstruct.Mapper;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = {CartMapper.class})
 public interface PlayerMapper {
     PlayerDTO toDTO(Player player);
 }
