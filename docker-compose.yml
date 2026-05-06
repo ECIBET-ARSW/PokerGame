@@ -6,10 +6,10 @@ services:
       - "8085:8085"
     environment:
       - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/dataDB
-      - SPRING_RABBITMQ_HOST=ip-172-31-67-67.ec2.internal
+      - SPRING_RABBITMQ_HOST=172.31.34.69
       - SPRING_RABBITMQ_PORT=5672
-      - SPRING_RABBITMQ_USERNAME=guest
-      - SPRING_RABBITMQ_PASSWORD=guest
+      - SPRING_RABBITMQ_USERNAME=admin
+      - SPRING_RABBITMQ_PASSWORD=admin123
     depends_on:
       mongo:
         condition: service_healthy  # ← espera a que mongo esté listo
