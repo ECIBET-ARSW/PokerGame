@@ -1,22 +1,29 @@
 package eci.edu.co.pokerservice.model.document;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
-@Document(collection = "carts")
+@Document(collection = "lobbies")
 @Data
 @AllArgsConstructor
-public class Lobby{
+@Builder
+public class Lobby {
     @Id
     private String id;
-    private int totalBet;
     @DBRef
-    private List<Player> players;
-    private List<Cart> carts;
-    private List<Cart> cartsInTable;
+    private Game actualGame;
+    private int smallBlind;
+    private int bigBlind;
+    private String leaderId;
+    @DBRef
+    private List<Game> games;
+    private LocalDateTime lobbyCreated;
 }
