@@ -19,31 +19,21 @@ import java.util.List;
 public class Game {
     @Id
     private String id;
-
-    // Estado de la fase
     private GamePhase phase;
     private boolean inGame;
-
-    // Apuestas
     private int pot;
     private int actualBet;
     private int actualRaise;
-
-    // Control de turno
+    private int maxBet;
     private int currentPlayerIndex;
     private int dealerIndex;
     private int smallBlindIndex;
     private int bigBlindIndex;
     private int playersActedThisRound;
-
-    // Cartas
     private List<Cart> carts;
     private List<Cart> cartsInTable;
-
-    // Jugadores
     @DBRef
     private List<Player> players;
-
     @DBRef
     private Player winner;
 }

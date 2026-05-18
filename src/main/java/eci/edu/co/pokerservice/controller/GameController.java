@@ -14,7 +14,14 @@ public class GameController {
 
     private final GameService gameService;
 
+    @PostMapping("/heartbeat/{playerId}")
+    public ResponseEntity<ApiResponse<Object>> heartbeat(@PathVariable String playerId) {
+        gameService.registerHeartbeat(playerId);
+        return response(200, null, "OK");
+    }
+
     @GetMapping("/{gameId}")
+
     public ResponseEntity<ApiResponse<Object>> getGame(@PathVariable String gameId) {
         GamePublicDTO gameDTO = gameService.getGame(gameId);
         return response(200, gameDTO, "Game found");

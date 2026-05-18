@@ -1,6 +1,5 @@
 package eci.edu.co.pokerservice.repository;
 
-import eci.edu.co.pokerservice.model.document.Lobby;
 import eci.edu.co.pokerservice.model.document.Player;
 import org.springframework.data.mongodb.repository.MongoRepository;
 

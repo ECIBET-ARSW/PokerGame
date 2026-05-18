@@ -19,7 +19,6 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +42,7 @@ public class LobbyService {
         Player player = playerValidations(lobbyRequestDTO.getPlayerId());
         player.setName(lobbyRequestDTO.getPlayerName());
         player.setCredit(lobbyRequestDTO.getCredits());
+        player.setAvatarIndex(1);
         Game game = newGame(List.of(player));
         Lobby lobby = newLobby(game);
         lobby.setLeaderId(player.getId());
@@ -176,6 +176,14 @@ public class LobbyService {
         Lobby lobby = validateLobby(addPlayerRequestDTO.getLobbyId());
         Game game = validateGameExist(lobby.getActualGame().getId());
         validatePlayersNumber(game.getPlayers());
+        java.util.Set<Integer> usedIndexes = game.getPlayers().stream()
+                .map(Player::getAvatarIndex)
+                .collect(java.util.stream.Collectors.toSet());
+        int freeIndex = java.util.stream.IntStream.rangeClosed(1, 6)
+                .filter(i -> !usedIndexes.contains(i))
+                .findFirst()
+                .orElse(game.getPlayers().size() + 1);
+        player.setAvatarIndex(freeIndex);
         game.getPlayers().add(player);
         validateBigBlind(player);
         playerRepository.save(player);
