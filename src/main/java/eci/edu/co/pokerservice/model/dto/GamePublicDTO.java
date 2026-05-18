@@ -18,6 +18,7 @@ public class GamePublicDTO {
     private int pot;
     private int actualBet;
     private int actualRaise;
+    private int maxBet;
     private int currentPlayerIndex;
     private int dealerIndex;
     private int smallBlindIndex;

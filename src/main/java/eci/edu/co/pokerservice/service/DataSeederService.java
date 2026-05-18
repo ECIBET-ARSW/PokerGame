@@ -9,7 +9,6 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-
 import java.util.List;
 
 @Component
@@ -23,7 +22,6 @@ public class DataSeederService implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
 
-        // Solo hace seed si la colección está vacía
         if (repository.count() > 0) {
             log.info("La colección ya tiene datos. Se omite el seed.");
             return;
@@ -31,7 +29,6 @@ public class DataSeederService implements CommandLineRunner {
 
         log.info("Iniciando seed de datos...");
 
-        // Lee el JSON desde resources
         ClassPathResource resource = new ClassPathResource("data/seed-data.json");
         List<Cart> datos = objectMapper.readValue(
                 resource.getInputStream(),

@@ -13,5 +13,6 @@ public class PlayerDTO {
     private String name;
     private int credit;
     private boolean inLobby;
+    private int avatarIndex;
     private List<CartDTO> hand;
 }

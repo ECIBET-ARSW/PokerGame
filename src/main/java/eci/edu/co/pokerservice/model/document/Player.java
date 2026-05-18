@@ -6,7 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.List;
@@ -23,8 +22,8 @@ public class Player {
     private String name;
     private int credit;
     private boolean inLobby = false;
-
-    // Estado dentro de la partida
+    private int avatarIndex = 0;
+    private int totalBet = 0;
     private List<Cart> hand;
     private int currentBet;
     private boolean folded;

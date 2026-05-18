@@ -8,16 +8,22 @@ import eci.edu.co.pokerservice.model.document.Cart;
 import eci.edu.co.pokerservice.model.document.Game;
 import eci.edu.co.pokerservice.model.document.Player;
 import eci.edu.co.pokerservice.model.document.enums.GamePhase;
+import eci.edu.co.pokerservice.model.document.enums.PlayerAction;
 import eci.edu.co.pokerservice.model.dto.GamePublicDTO;
 import eci.edu.co.pokerservice.model.dto.PlayerPrivateDTO;
+import eci.edu.co.pokerservice.model.dto.request.LeaveLobbyRequestDTO;
 import eci.edu.co.pokerservice.model.dto.request.PlayerActionRequestDTO;
 import eci.edu.co.pokerservice.repository.GameRepository;
 import eci.edu.co.pokerservice.repository.PlayerRepository;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.Comparator;
@@ -25,7 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-@AllArgsConstructor
+@RequiredArgsConstructor
 @Service
 @Slf4j
 public class GameService {
@@ -35,6 +41,73 @@ public class GameService {
     private final GameMapper gameMapper;
     private final CartMapper cartMapper;
     private final WalletEventPublisher walletEventPublisher;
+    @Lazy private final LobbyService lobbyService;
+    private final Map<String, LocalDateTime> lastHeartbeat = new ConcurrentHashMap<>();
+    private final Map<String, String> currentTurnPlayer   = new ConcurrentHashMap<>();
+    private final Map<String, LocalDateTime> turnStartTime = new ConcurrentHashMap<>();
+    private static final int TIMEOUT_SECONDS    = 120;
+    private static final int DISCONNECT_SECONDS = 30;
+
+    public void registerHeartbeat(String playerId) {
+        lastHeartbeat.put(playerId, LocalDateTime.now());
+    }
+
+    private boolean isConnected(String playerId) {
+        LocalDateTime last = lastHeartbeat.get(playerId);
+        if (last == null) return true;
+        return java.time.Duration.between(last, LocalDateTime.now()).getSeconds() < DISCONNECT_SECONDS;
+    }
+
+    @Scheduled(fixedDelay = 10000)
+    public void checkInactivity() {
+        List<Game> activeGames = gameRepository.findAll().stream()
+                .filter(Game::isInGame).toList();
+        for (Game game : activeGames) {
+            List<Player> players = game.getPlayers();
+            if (players == null || players.isEmpty()) continue;
+            int idx = game.getCurrentPlayerIndex();
+            if (idx < 0 || idx >= players.size()) continue;
+            Player current = players.get(idx);
+            if (current.isFolded() || current.isAllIn()) continue;
+            String key = game.getId();
+            String currentId = current.getId();
+            if (!currentId.equals(currentTurnPlayer.get(key))) {
+                currentTurnPlayer.put(key, currentId);
+                turnStartTime.put(key, LocalDateTime.now());
+                continue;
+            }
+            LocalDateTime start = turnStartTime.get(key);
+            if (start == null) { turnStartTime.put(key, LocalDateTime.now()); continue; }
+            long elapsed = java.time.Duration.between(start, LocalDateTime.now()).getSeconds();
+            boolean disconnected = !isConnected(currentId);
+            if (elapsed >= TIMEOUT_SECONDS || disconnected) {
+                try {
+                    PlayerAction action = disconnected ? PlayerAction.FOLD
+                            : (game.getActualBet() > 0 ? PlayerAction.CALL : PlayerAction.CHECK);
+                    PlayerActionRequestDTO req = new PlayerActionRequestDTO();
+                    req.setGameId(key); req.setPlayerId(currentId);
+                    req.setAction(action); req.setRaiseAmount(0);
+                    playerAction(req);
+                    turnStartTime.put(key, LocalDateTime.now());
+                    if (disconnected) {
+                        try {
+                            LeaveLobbyRequestDTO leaveReq = LeaveLobbyRequestDTO.builder()
+                                    .playerId(currentId)
+                                    .lobbyId(null)
+                                    .build();
+                            lobbyService.removePlayer(leaveReq);
+                            lastHeartbeat.remove(currentId);
+                        } catch (Exception ex) {
+                            log.warn("No se pudo remover jugador {} del lobby: {}", currentId, ex.getMessage());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Error acción automática jugador {}: {}", currentId, e.getMessage());
+                    turnStartTime.put(key, LocalDateTime.now());
+                }
+            }
+        }
+    }
 
     @Transactional
     public GamePublicDTO dealCards(String gameId) {
@@ -55,9 +128,16 @@ public class GameService {
             player.setFolded(false);
             player.setAllIn(false);
             player.setCurrentBet(0);
+            player.setTotalBet(0);
             cardIndex += 2;
             playerRepository.save(player);
         }
+
+        int maxBet = players.stream()
+                .mapToInt(Player::getCredit)
+                .min()
+                .orElse(0);
+        game.setMaxBet(maxBet);
 
         List<Cart> remainingDeck = deck.subList(cardIndex, deck.size());
         game.setCarts(new ArrayList<>(remainingDeck));
@@ -138,7 +218,7 @@ public class GameService {
             walletEventPublisher.publishBetWon(winner.getId(), game.getPot(), game.getId());
             players.stream()
                     .filter(p -> p.isInLobby() && !p.getId().equals(winner.getId()))
-                    .forEach(p -> walletEventPublisher.publishBetLost(p.getId(), p.getCurrentBet(), game.getId()));
+                    .forEach(p -> walletEventPublisher.publishBetConfirmed(p.getId(), p.getTotalBet(), game.getId()));
             gameRepository.save(game);
             return gameMapper.toPublicDTO(game);
         }
@@ -206,16 +286,17 @@ public class GameService {
             final String winnerId = winner.getId();
             activePlayers.stream()
                     .filter(p -> !p.getId().equals(winnerId))
-                    .forEach(p -> walletEventPublisher.publishBetLost(p.getId(), p.getCurrentBet(), game.getId()));
+                    .forEach(p -> walletEventPublisher.publishBetConfirmed(p.getId(), p.getTotalBet(), game.getId()));
         }
     }
 
     private int calculateMaxAllIn(Game game) {
-        return game.getPlayers().stream()
-                .filter(p -> p.isInLobby() && !p.isFolded() && !p.isAllIn())
-                .mapToInt(Player::getCredit)
-                .min()
-                .orElse(0);
+        return game.getMaxBet() > 0 ? game.getMaxBet() :
+                game.getPlayers().stream()
+                        .filter(p -> p.isInLobby() && !p.isFolded() && !p.isAllIn())
+                        .mapToInt(Player::getCredit)
+                        .min()
+                        .orElse(0);
     }
 
     private int evaluateHand(List<Cart> hand, List<Cart> community) {
@@ -410,6 +491,12 @@ public class GameService {
             p.setCurrentBet(0);
             playerRepository.save(p);
         });
+        int newMaxBet = game.getPlayers().stream()
+                .filter(p -> p.isInLobby() && !p.isFolded())
+                .mapToInt(Player::getCredit)
+                .min()
+                .orElse(0);
+        game.setMaxBet(newMaxBet);
     }
 
     private void handleCheck(Game game, Player player) {
@@ -425,6 +512,7 @@ public class GameService {
         int toPay = Math.min(amountToCall, player.getCredit());
         player.setCredit(player.getCredit() - toPay);
         player.setCurrentBet(player.getCurrentBet() + toPay);
+        player.setTotalBet(player.getTotalBet() + toPay);
         if (player.getCredit() == 0) player.setAllIn(true);
         game.setPot(game.getPot() + toPay);
         walletEventPublisher.publishBetConfirmed(player.getId(), toPay, gameId);
@@ -452,6 +540,7 @@ public class GameService {
 
         player.setCredit(player.getCredit() - amountNeeded);
         player.setCurrentBet(totalBet);
+        player.setTotalBet(player.getTotalBet() + amountNeeded);
         if (player.getCredit() == 0) player.setAllIn(true);
         game.setPot(game.getPot() + amountNeeded);
         game.setActualBet(totalBet);

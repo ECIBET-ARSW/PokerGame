@@ -9,8 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -31,7 +29,7 @@ public class WalletEventPublisher {
     }
 
     public void publishBetLost(String userId, int amount, String gameId) {
-        BetEvent event = new BetEvent(gameId, userId, (double) amount);
+        BetLostEvent event = new BetLostEvent(gameId, userId, (double) amount);
         rabbitTemplate.convertAndSend(RabbitMQConfig.WALLET_REQUESTS_EXCHANGE, RabbitMQConfig.BET_LOST_ROUTING_KEY, event);
         log.info("BetLost publicado: userId={} amount={}", userId, amount);
     }
@@ -43,5 +41,14 @@ public class WalletEventPublisher {
         private String betId;
         private String userId;
         private Double amount;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class BetLostEvent {
+        private String betId;
+        private String userId;
+        private Double stake;
     }
 }
