@@ -68,7 +68,7 @@ public class GameService {
             int idx = game.getCurrentPlayerIndex();
             if (idx < 0 || idx >= players.size()) continue;
             Player current = players.get(idx);
-            if (current.isFolded() || current.isAllIn()) continue;
+            if (current.isFolded()) continue;
             String key = game.getId();
             String currentId = current.getId();
             if (!currentId.equals(currentTurnPlayer.get(key))) {
@@ -133,12 +133,6 @@ public class GameService {
             playerRepository.save(player);
         }
 
-        int maxBet = players.stream()
-                .mapToInt(Player::getCredit)
-                .min()
-                .orElse(0);
-        game.setMaxBet(maxBet);
-
         List<Cart> remainingDeck = deck.subList(cardIndex, deck.size());
         game.setCarts(new ArrayList<>(remainingDeck));
         game.setCartsInTable(new ArrayList<>());
@@ -147,6 +141,7 @@ public class GameService {
         game.setActualBet(0);
         game.setActualRaise(0);
         game.setPlayersActedThisRound(0);
+        game.setMaxBet(0);
 
         int dealerIndex = game.getDealerIndex();
         int smallBlindIndex = nextActivePlayer(players, dealerIndex);
@@ -227,14 +222,14 @@ public class GameService {
         game.setCurrentPlayerIndex(nextIndex);
         game.setPlayersActedThisRound(game.getPlayersActedThisRound() + 1);
 
-        List<Player> activeNonAllIn = players.stream()
-                .filter(p -> p.isInLobby() && !p.isFolded() && !p.isAllIn())
+        List<Player> activeNonFolded = players.stream()
+                .filter(p -> p.isInLobby() && !p.isFolded())
                 .toList();
 
-        boolean allBetsEqual = activeNonAllIn.stream()
+        boolean allBetsEqual = activeNonFolded.stream()
                 .allMatch(p -> p.getCurrentBet() == game.getActualBet());
 
-        if (allBetsEqual && game.getPlayersActedThisRound() >= activeNonAllIn.size()) {
+        if (allBetsEqual && game.getPlayersActedThisRound() >= activeNonFolded.size()) {
             if (game.getPhase() != GamePhase.SHOWDOWN) {
                 nextPhase(game);
             }
@@ -288,15 +283,6 @@ public class GameService {
                     .filter(p -> !p.getId().equals(winnerId))
                     .forEach(p -> walletEventPublisher.publishBetConfirmed(p.getId(), p.getTotalBet(), game.getId()));
         }
-    }
-
-    private int calculateMaxAllIn(Game game) {
-        return game.getMaxBet() > 0 ? game.getMaxBet() :
-                game.getPlayers().stream()
-                        .filter(p -> p.isInLobby() && !p.isFolded() && !p.isAllIn())
-                        .mapToInt(Player::getCredit)
-                        .min()
-                        .orElse(0);
     }
 
     private int evaluateHand(List<Cart> hand, List<Cart> community) {
@@ -491,12 +477,6 @@ public class GameService {
             p.setCurrentBet(0);
             playerRepository.save(p);
         });
-        int newMaxBet = game.getPlayers().stream()
-                .filter(p -> p.isInLobby() && !p.isFolded())
-                .mapToInt(Player::getCredit)
-                .min()
-                .orElse(0);
-        game.setMaxBet(newMaxBet);
     }
 
     private void handleCheck(Game game, Player player) {
@@ -509,13 +489,14 @@ public class GameService {
     private void handleCall(Game game, Player player, String gameId) {
         int amountToCall = game.getActualBet() - player.getCurrentBet();
         if (amountToCall <= 0) throw new GameBadRequestException("Nothing to call, you can check");
+        // Si no tiene suficiente, paga todo lo que tiene
         int toPay = Math.min(amountToCall, player.getCredit());
         player.setCredit(player.getCredit() - toPay);
         player.setCurrentBet(player.getCurrentBet() + toPay);
         player.setTotalBet(player.getTotalBet() + toPay);
-        if (player.getCredit() == 0) player.setAllIn(true);
         game.setPot(game.getPot() + toPay);
         walletEventPublisher.publishBetConfirmed(player.getId(), toPay, gameId);
+        log.info("Player {} calls {}", player.getId(), toPay);
     }
 
     private void handleRaise(Game game, Player player, int raiseAmount, String gameId) {
@@ -527,26 +508,17 @@ public class GameService {
         if (amountNeeded <= 0) {
             throw new GameBadRequestException("Raise must be higher than your current bet");
         }
-        if (amountNeeded > player.getCredit()) {
-            throw new GameBadRequestException("Not enough credits to raise");
-        }
-
-        int maxAllIn = calculateMaxAllIn(game);
-        if (amountNeeded > maxAllIn) {
-            throw new GameBadRequestException(
-                    "La apuesta máxima es " + maxAllIn + " COP (limitada por el jugador con menos créditos)"
-            );
-        }
-
-        player.setCredit(player.getCredit() - amountNeeded);
-        player.setCurrentBet(totalBet);
-        player.setTotalBet(player.getTotalBet() + amountNeeded);
-        if (player.getCredit() == 0) player.setAllIn(true);
-        game.setPot(game.getPot() + amountNeeded);
-        game.setActualBet(totalBet);
+        // Si no tiene suficiente, paga todo lo que tiene
+        int toPay = Math.min(amountNeeded, player.getCredit());
+        player.setCredit(player.getCredit() - toPay);
+        player.setCurrentBet(player.getCurrentBet() + toPay);
+        player.setTotalBet(player.getTotalBet() + toPay);
+        game.setPot(game.getPot() + toPay);
+        game.setActualBet(player.getCurrentBet());
         game.setActualRaise(raiseAmount);
         game.setPlayersActedThisRound(0);
-        walletEventPublisher.publishBetConfirmed(player.getId(), amountNeeded, gameId);
+        walletEventPublisher.publishBetConfirmed(player.getId(), toPay, gameId);
+        log.info("Player {} raises to {}", player.getId(), player.getCurrentBet());
     }
 
     private void handleFold(Player player) {
